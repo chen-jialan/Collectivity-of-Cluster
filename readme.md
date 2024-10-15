@@ -29,18 +29,18 @@ Advisors: Jin-Xun Liu (jxliu86@ustc.edu.cn) and Wei-Xue Li (wxli70@ustc.edu.cn)
 
 This repository includes several folders that implement the framework:
 
-1. **[nn](.\nn)**: Contains scripts for training reliable ANNPs, including training parameters and the active learning algorithm.
-2. **[str](.\str)**: Focuses on searching metastable structures under *operational* conditions using GA and M-GCMC simulations.
-3. **[sites](.\sites)**: Provides tools for the identification of sites and their distributions.
-4. **[ts](.\ts)**: Includes scripts for searching transition states with ANNPs, utilizing auto NEB and dyNEB methods.
-5. **[mkm](.\mkm)**: Contains input files for microkinetic modeling.
-6. **[desp](.\desp)**: Provides input data and training sets for predicting transition state energies using the SISSO method.
+1. **nn**: Contains scripts for training reliable ANNPs, including training parameters and the active learning algorithm.
+2. **str**: Focuses on searching metastable structures under *operational* conditions using GA and M-GCMC simulations.
+3. **sites**: Provides tools for the identification of sites and their distributions.
+4. **ts**: Includes scripts for searching transition states with ANNPs, utilizing auto NEB and dyNEB methods.
+5. **mkm**: Contains input files for microkinetic modeling.
+6. **desp**: Provides input data and training sets for predicting transition state energies using the SISSO method.
 
 **Training reliable ANNPs**
 
 This process includes generating the initial dataset and expanding the configuration space using an active learning algorithm. The ASE interface for the Embedded Atom Neural Network (EANN) is employed via `eann.py`. 
 
-See more details in the [nn](.\nn) folder.
+See more details in the **nn** folder.
 
 To train the model and handle uncertain or poorly predicted structures:
 
@@ -53,7 +53,7 @@ python3 get_atoms # Identify structures with poor predictive accuracy
 
 These simulations are used to search metastable structures under *operational* conditions. 
 
-All relevant scripts and configuration files can be found in the [str](.\str) folder.
+All relevant scripts and configuration files can be found in the **str** folder.
 
 - **Genetic algorithm (GA)**
 
@@ -77,7 +77,7 @@ python3 m-gcmc.py  # Execute the M-GCMC simulation
 
 This step involves identifying metastable structures and analyzing the distribution of potential active sites. 
 
-The corresponding scripts and data are located in the [sites](.\sites) folder.
+The corresponding scripts and data are located in the **sites** folder.
 
 - **Metastable structures and their distribution**
 
@@ -98,7 +98,7 @@ python3 meta_min_energy_next_sites.py # every site and its distribution
 **Transition State Search**
 ANNPs are employed as an initial guess for transition states in catalytic reactions. 
 
-The automated scripts for transition state searches are located in the [ts](.\ts) folder.
+The automated scripts for transition state searches are located in the **ts** folder.
 
 - **Automated NEB**
 
@@ -119,12 +119,12 @@ python3 dyneb.py  # Run DyNEB for a more precise transition state search
 **Microkinetic Modeling (MKM)**
 Microkinetic modeling is performed by MKMCXX to simulate reaction kinetics and identify key rate-determining steps. 
 
-The relevant scripts can be found in the [mkm](.\mkm) folder.
+The relevant scripts can be found in the **mkm** folder.
 
 **Prediction of Transition State Energies**
 The transition state energies are predicted by SISSO. This helps in identifying key catalytic descriptors for further analysis. 
 
-The input files are located in the [desp](.\desp) folder.
+The input files are located in the **desp** folder.
 
 ## Dependencies and Softwares
 
