@@ -130,7 +130,7 @@ The input files are located in the **desp** folder.
 
 - **[ASE](https://wiki.fysik.dtu.dk/ase/)**: Used for structure search through GA and M-GCMC simulations.
   Version: `ASE=3.22.1`
-- **[MKMCXX](https://wiki.mkmcxx.nl/index.php/Main_Page#:~:text=MKMCXX is a software suite for)**: A software suite for microkinetic modeling.
+- **[MKMCXX](https://wiki.mkmcxx.nl/index.php/Main_Page)**: A software suite for microkinetic modeling.
 - **[PyTorch](https://pytorch.org/)**: Utilized for training ANNPs.
   Version: `torch=1.8.0`
 - **[NumPy](https://numpy.org/)**: For vector and matrix operations.
