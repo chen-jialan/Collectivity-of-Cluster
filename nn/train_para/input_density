@@ -1,0 +1,5 @@
+neigh_atoms=100
+cutoff=7e0
+nipsin=[0, 1, 2]
+atomtype=['Cu', 'O', 'C']
+nwave=10
