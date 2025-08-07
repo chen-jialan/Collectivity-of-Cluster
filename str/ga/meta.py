@@ -58,11 +58,8 @@ for i in range(len(energy_copy)):
                 f.write('%s %s\n' %(a,energy_copy[i]))
                 energy_write = energy_copy[i]
                 a += 1
-        # print(atoms.get_potential_energy())
 os.system('mv energy pos/.')
 f.close()
 db = connect('bulk.db')
 for atoms in atom_all:
     db.write(atoms, relaxed=True)
-        #db = connect('bulk.db')
-        #db.write(atoms, relaxed=True)

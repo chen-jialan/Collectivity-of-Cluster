@@ -1,11 +1,10 @@
+import os
+import argparse
 from random import random, randint
-#import ramdom
 from ase.io import write
 from ase.optimize import LBFGS
-#from ase.calculators.emt import EMT
 from ase.calculators.eann import EANN
 from ase.calculators.manual_written import Manual_written
-import os
 from ase.ga.data import DataConnection
 from ase.ga.population import Population
 from ase.ga.standard_comparators import InteratomicDistanceComparator
@@ -23,10 +22,31 @@ import multiprocessing as mp
 from concurrent import futures
 
 
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Run genetic algorithm for atomic structure optimization.")
+    parser.add_argument("--population_size", type=int,
+                        default=48, help="Size of the population.")
+    parser.add_argument("--mutation_probability", type=float,
+                        default=0.5, help="Probability of mutation.")
+    parser.add_argument("--n_to_test", type=int, default=200,
+                        help="Number of configurations to test.")
+    parser.add_argument("--processes", type=int, default=os.cpu_count(),
+                        help="Number of processes or threads.")
+    parser.add_argument("--db_file", type=str,
+                        default="gadb.db", help="Database file for ASE-GA.")
+    parser.add_argument("--atom_types", nargs="+", default=[
+                        "Cu", "O", "C"], help="Atomic types for the EANN calculator (e.g., Cu O C)")
+    parser.add_argument("--cutoff_radius", type=float,
+                        default=0.7, help="Covalent radii ratio cutoff.")
+    return parser.parse_args()
+
+
 def calc(a):
-    atomtype = ['Cu', 'O', 'C']
+    """Relax atoms and compute energy/forces."""
+    atomtype = ["Cu", "O", "C"]
     a.calc = EANN(atomtype=atomtype, period=[1, 1, 1], nn='EANN_PES_DOUBLE.pt')
-    # dyn = LBFGS(a, trajectory=None, logfile=None)
     dyn = LBFGS(a)
     dyn.run(fmax=0.1, steps=200)
     energy = a.get_potential_energy()
@@ -39,92 +59,105 @@ def calc(a):
     return a
 
 
-if __name__ == "__main__":
-    # Change the following three parameters to suit your needs
-    population_size = 48
-    mutation_probability = 0.5
-    n_to_test = 200
-    processes = mp.cpu_count()
-    if os.path.exists('./tmp_traj'):
-        os.system('rm -r ./tmp_traj')
-
-    # Initialize the different components of the GA
-    da = DataConnection('gadb.db')
+def setup_ga(args):
+    """Set up the genetic algorithm components."""
+    # Initialize the database and other components
+    da = DataConnection(args.db_file)
     atom_numbers_to_optimize = da.get_atom_numbers_to_optimize()
     n_to_optimize = len(atom_numbers_to_optimize)
     slab = da.get_slab()
+
+    # Setup the unique atom types and bond length parameters
     all_atom_types = get_all_atom_types(slab, atom_numbers_to_optimize)
-    blmin = closest_distances_generator(all_atom_types,
-                                        ratio_of_covalent_radii=0.7)
+    blmin = closest_distances_generator(
+        all_atom_types, ratio_of_covalent_radii=args.cutoff_radius)
 
-    comp = InteratomicDistanceComparator(n_top=n_to_optimize,
-                                         pair_cor_cum_diff=0.015,
-                                         pair_cor_max=0.7,
-                                         dE=0.02,
-                                         mic=False)
-    # comp = OFPComparator(n_top=n_to_optimize,
-    #                     cos_dist_max=0.01)
+    comp = InteratomicDistanceComparator(
+        n_top=n_to_optimize, pair_cor_cum_diff=0.015, pair_cor_max=0.7, dE=0.02, mic=False)
     pairing = CutAndSplicePairing(slab, n_to_optimize, blmin)
-    mutations = OperationSelector([1., 15., 1., 5.],
-                                  [MirrorMutation(blmin, n_to_optimize),
-                                   RattleMutation(
-                                       blmin, n_to_optimize, rattle_strength=2.3),
-                                   PermutationMutation(n_to_optimize),
-                                   RotationalMutation(blmin, n_to_optimize)])
 
-    # Relax all unrelaxed structures (e.g. the starting population)
+    mutations = OperationSelector(
+        [1., 15., 1., 5.],
+        [
+            MirrorMutation(blmin, n_to_optimize),
+            RattleMutation(blmin, n_to_optimize, rattle_strength=2.3),
+            PermutationMutation(n_to_optimize),
+            RotationalMutation(blmin, n_to_optimize)
+        ]
+    )
+
+    # Setup population
+    population = Population(
+        data_connection=da, population_size=args.population_size, comparator=comp, use_extinct=True)
+    cc = GenerationRepetitionConvergence(
+        population, number_of_generations=3, number_of_individuals=-1, max_generations=n_to_optimize)
+
+    return da, population, cc, pairing, mutations
+
+
+def relax_starting_population(da, processes):
+    """Relax starting population candidates."""
     number_da = da.get_number_of_unrelaxed_candidates()
     if number_da > 0:
         print('Relaxing starting candidate')
-        a = da.get_all_unrelaxed_candidates()
+        candidates = da.get_all_unrelaxed_candidates()
 
-        with futures.ThreadPoolExecutor(max_workers=number_da) as executor:  # thread
-            # with futures.ProcessPoolExecutor(max_workers=processes) as executor: #process
-            for a_relax in executor.map(calc, a):
+        with futures.ThreadPoolExecutor(max_workers=number_da) as executor:
+            for a_relax in executor.map(calc, candidates):
                 da.add_relaxed_step(a_relax)
         print('Relaxing done candidate')
-    # create the population
-    population = Population(data_connection=da,
-                            population_size=population_size,
-                            comparator=comp, use_extinct=True)
-    cc = GenerationRepetitionConvergence(population, number_of_generations=3,
-                                         number_of_individuals=-1, max_generations=n_to_test)
 
-    # # test n_to_test new candidates
-    for i in range(n_to_test):
+
+def generate_offspring(population, pairing, mutations, mutation_probability, processes):
+    """Generate offspring by crossover and mutation."""
+    offspring = []
+    for j in range(processes):
+        a1, a2 = population.get_two_candidates()
+        a3, desc = pairing.get_new_individual([a1, a2])
+        if a3 is None:
+            continue
+        offspring.append(a3)
+        if random() < mutation_probability:
+            a3_mut, desc = mutations.get_new_individual([a3])
+            if a3_mut is not None:
+                offspring.append(a3_mut)
+    return offspring
+
+
+def main():
+    args = parse_args()
+
+    # Setup GA components
+    da, population, cc, pairing, mutations = setup_ga(args)
+
+    # Relax the starting population
+    relax_starting_population(da, args.processes)
+
+    # GA iterations
+    for i in range(args.n_to_test):
         if cc.converged():
-            print('converged')
+            print('Converged!')
             break
-        print('Now starting configuration number {0}'.format(i))
-        offspring = []
-        # for i in range(randint(1,processes)):
-        for j in range(processes):
-            a1, a2 = population.get_two_candidates()
-            a3, desc = pairing.get_new_individual([a1, a2])
-            if a3 is None:
-                continue
-            da.add_unrelaxed_candidate(a3, description=desc)
+        print(f"Now starting configuration number {i}")
 
-            # Check if we want to do a mutation
-            if random() < mutation_probability:
-                a3_mut, desc = mutations.get_new_individual([a3])
-                if a3_mut is not None:
-                    da.add_unrelaxed_step(a3_mut, desc)
-                    a3 = a3_mut
-            offspring.append(a3)
-        print('Now starting offsprings %s' % len(offspring))
-        # thread
+        # Generate offspring
+        offspring = generate_offspring(
+            population, pairing, mutations, args.mutation_probability, args.processes)
+
+        # Relax offspring and update population
         with futures.ThreadPoolExecutor(max_workers=len(offspring)) as executor:
-            # with futures.ProcessPoolExecutor(max_workers=processes) as executor: #process
             for a_relax in executor.map(calc, offspring):
                 da.add_relaxed_step(a_relax)
                 population.update()
 
+        # Output and save candidates
         if i % 10 == 9:
-            if not os.path.exists('./tmp_traj'):
-                os.mkdir('./tmp_traj')
             write('all_candidates.traj', da.get_all_relaxed_candidates())
             os.system(
-                'mv all_candidates.traj tmp_traj/all_candidates_%s.traj' % i)
+                f'mv all_candidates.traj tmp_traj/all_candidates_{i}.traj')
 
     write('all_candidates.traj', da.get_all_relaxed_candidates())
+
+
+if __name__ == "__main__":
+    main()

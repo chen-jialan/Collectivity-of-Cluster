@@ -38,7 +38,12 @@ import ase.io.vasp
 
 
 class Population:
-    def __init__(self, ratio_CO=0.5, adjust_value=0, pressure=1e5, standard_pressure=100000, ads_number=10, cycle_number=1, ConstantR=8.618E-5, temperature=300, cutoff_distance=1.95, cutoff_distance1=1.2, cutoff_distance2=2.7, cutoff_distance3=1.3, potential_O2=-1.071316E+01/2, potential_CO=-15.78612, potential_CO2=-24.24603, all_CO=20, all_O2=20):
+    def __init__(self, ratio_CO=0.5, adjust_value=0, pressure=1e5, 
+                 standard_pressure=100000, ads_number=10, cycle_number=1, 
+                 ConstantR=8.618E-5, temperature=300, cutoff_distance=1.95, 
+                 cutoff_distance1=1.2, cutoff_distance2=2.7, cutoff_distance3=1.3, 
+                 potential_O2=-1.071316E+01/2, potential_CO=-15.78612, 
+                 potential_CO2=-24.24603, all_CO=20, all_O2=20):
         self.ratio_CO = ratio_CO
         self.ads_number = ads_number
         self.cycle_number = cycle_number
@@ -1385,14 +1390,31 @@ def random_2part(number0, number1, number2, number3):
     return x
 
 
-def main():
+def run(
+        calc,
+        file_meta='meta.traj',
+        potential_O2=-1.071316E+01/2,
+        potential_CO=-15.78612,
+        potential_CO2=-24.24603,
+        temperature=300,
+        pressure=1e5,
+        cycle=1000,
+        stop_criterion=300,
+        H_fix=1.6,
+        ratio_CO=0.5):
     path = os.getcwd()
     # os.system('rm allarc; rm GCMCtraj;rm step-all;rm alllammps;rm energy-all;rm lammps-choice;rm alltrain;rm -r poscar-all;rm -r all-structure')
     # os.system('cp input.arc beststr.arc;cp input.arc allstruct.arc;cp input.arc allstr.arc; cp input.arc allstruct_gas.arc')
     os.system(
         'rm allposcar.traj;rm POSCAR-all;rm GCMCtraj;rm step-all;rm bestPOSCAR;rm best-POSCAR;rm time_all')
     path1 = path + '/best-1.arc'
-    pop = Population()
+    # pop = Population()
+    pop = Population(ratio_CO=ratio_CO,
+                      potential_O2=potential_O2,
+                      potential_CO=potential_CO,
+                      potential_CO2=potential_CO2,
+                      temperature=temperature,
+                      pressure=pressure)
     Path_arc = path + '/str'
     Path_arc2 = path + '/str2'
     Path_arc3 = path + '/str3'
@@ -1405,22 +1427,22 @@ def main():
     x = 0
     # allatom = pop.atom(path,'input.arc')
     all_times = 0
-    cycle = 20000
-    stop_criterion = 10000
-    H_fix = 1.6  # fix height
+    # cycle = 20000
+    # stop_criterion = 10000
+    # H_fix = 1.6  # fix height
     # --------------the type of atom--------------
-    atomtype = ['Cu', 'Ce', 'O', 'C']
-    # -----------------the device is cpu or gpu( cpu is default)---------------
-    device = 'cpu'
-    # -------------------------pbc([1,1,1] is default)---------------------
-    period = [1, 1, 1]
-    # ---------------nn file('EANN_PES_DOUBLE.pt' is default)----------------------------
-    nn = 'EANN_PES_DOUBLE.pt'
-    traj = Trajectory('meta.traj')
+    # atomtype = ['Cu', 'Ce', 'O', 'C']
+    # # -----------------the device is cpu or gpu( cpu is default)---------------
+    # device = 'cpu'
+    # # -------------------------pbc([1,1,1] is default)---------------------
+    # period = [1, 1, 1]
+    # # ---------------nn file('EANN_PES_DOUBLE.pt' is default)----------------------------
+    # nn = 'EANN_PES_DOUBLE.pt'
+    traj = Trajectory(file_meta)
     atoms = traj[0]
     #cell1 = ase.io.vasp.read_vasp("POSCAR")
     #atoms = Atoms(cell1)
-    atoms.calc = EANN(device=device, nn=nn, atomtype=atomtype, period=period)
+    atoms.calc = calc
     dyn = LBFGS(atoms, trajectory='atom2.traj')
     dyn.run(fmax=0.1, steps=100)
     traj = Trajectory('atom2.traj')
@@ -1544,11 +1566,6 @@ def main():
             num_atom_O = all_gas_num - 2*num_atom_c
         else:
             num_atom_O = 0
-
-        # exa = os.popen("grep Energy input.arc | tail -1 | awk '{print $4}'",'r')
-        # line=exa.readline()
-        # energy_ini=float(line[:])
-        # ini_energy = pop.energy_correction(num_atom_c, num_atom_O, 0, len(cluster_atom), energy_ini)
 
         with open('GCMCtraj', 'a+') as fp:
             fp.write('%s:\t%s\n' % (times, ini_energy))
@@ -1771,8 +1788,7 @@ def main():
                 #cell1 = ase.io.vasp.read_vasp("POSCAR")
                 #atoms = Atoms(cell1)
             # ----------------------eann --------------------------------
-                atoms.calc = EANN(device=device, nn=nn,
-                                  atomtype=atomtype, period=period)
+                atoms.calc = calc
                 dyn = LBFGS(atoms, trajectory='atom2.traj')
                 dyn.run(fmax=0.1, steps=100)
                 traj = Trajectory('atom2.traj')
@@ -1794,8 +1810,7 @@ def main():
                     a_bad = pop.badall(allatom_gas, H_fix)
                     number_support = len(support_atom_post)
                     #number_CO2, allatom_no_CO2 = pop.CO2_bave(allatom_gas)
-                    atoms.calc = EANN(device=device, nn=nn,
-                                      atomtype=atomtype, period=period)
+                    atoms.calc = calc
                     energy = atoms.get_potential_energy()
                     force_bad = atoms.get_forces()
                     ration_final = 0
@@ -1846,8 +1861,3 @@ def main():
         if abs(stop_time - cycle_time) >= stop_criterion:
             print('finish')
             break
-
-
-
-if __name__ == main():
-    main()
